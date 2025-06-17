@@ -562,14 +562,14 @@ var timeline=[]
 // instructions
 timeline.push(preload,consentTrial,enter_fullscreen,instructions1);
 // callibration trials
-timeline.push(numerosityEstimation(callibrationList,"callibration"));
+// timeline.push(numerosityEstimation(callibrationList,"callibration"));
 // repeat instructions before test trials
 timeline.push(instructions2);
 // test trials with a brief summary after each block
-for (i = 0; i < nBlocks; i += 1) { 
+/* for (i = 0; i < nBlocks; i += 1) { 
   blocks=full_design.filter(entry => entry.block === i);
   timeline.push(numerosityEstimation(blocks,"test"),debrief_block);
-}
+} */
 timeline.push(metacognition,save_server_data,exit_fullscreen,endDebriefing);
 
 jsPsych.run(timeline);
