@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="jspsych7.3/jspsych.js"></script>
+  <script src="jspsych7.3/plugin-html-keyboard-response.js"></script>
+  <script src="jspsych7.3/plugin-html-button-response.js"></script>
+  <script src="jspsych7.3/plugin-canvas-button-response.js"></script>
+  <script src="jspsych7.3/plugin-external-html.js"></script>
+  <script src="jspsych7.3/plugin-numerosity-flashing-ver6.js"></script>
+  <script src="jspsych7.3/plugin-call-function.js"></script>
+  <script src="jspsych7.3/plugin-instructions.js"></script>
+  <script src="jspsych7.3/plugin-survey-multi-choice.js"></script>
+  <script src="jspsych7.3/plugin-preload.js"></script>
+  <link rel="stylesheet" href="jspsych7.3/jspsych.css">
+
+
+
+  <style>
+      .jspsych-btn {margin-bottom: 10px;}
+  </style>
+</head>
+<body>
+</body>
+<script>
+    
+// helpful variables
+var i,j;
+console.log("Exp2:", 0);
+
+// HIGHER ORDER VARIABLES
+
+/* The number of numerosities to test.
+e.g., 50 and 50 is 1 pair,
+50 and 50, 50 and 50 are 2 pairs */
+var numPairs=8;
+/* number of unique numerosities in ONE half of Exp */
+var nUniqueNumerosities=6; 
+var minNumerosity=50; // min numerosity as an answer (on the bar)
+var maxNumerosity=150; // max numerosity as an answer (on the bar)
+var inter_stim_interval = null; // ISI for flashing
+var stim_on_set_flash = 500; // frame rate for flashing
+
+// sprites that we will show
+var uniqueSprites = ["marbles","butterflies","mints","buttons","hearts","rocks"];
+/* Maybe need to show all sprites
+["animalCrackers", "letters", "butterflies", "hearts",
+                "crackers", "bears", "fruits", "jellyBeans", "marbles", "mints",
+                "rocks", "buttons"] */
+var uniqueAppearances = ["stationary","flashing"]; // unique appearances
+
+var stim_dur_total = (inter_stim_interval + stim_on_set_flash)*uniqueSprites.length - inter_stim_interval; // total stimulus duration
+
+var nTrials = numPairs * nUniqueNumerosities * uniqueAppearances.length * 2; // * 2 halves of Exp
+var trialsPerBlock=16; // number of blocks
+var nBlocks = nTrials / trialsPerBlock;
+
+var nCallibTrials = 8; // number of callibration trials
+
+var random_seed = 800; // seed to generate the same trials for all subjects
+
+// Begin Experiment
+var jsPsych = initJsPsych({
+    show_progress_bar: true // show progress bar
+});
+
+// get subject ID
+var getUrlParameter = function getUrlParameter(sParam) {
+    var sPageURL = decodeURIComponent(window.location.search.substring(1)),
+        sURLVariables = sPageURL.split('&'),
+        sParameterName,
+        i;
+
+    for (i = 0; i < sURLVariables.length; i++) {
+        sParameterName = sURLVariables[i].split('=');
+
+        if (sParameterName[0] === sParam) {
+            return sParameterName[1] === undefined ? true : sParameterName[1];
+        }
+    }
+};
+
+var SONAID = getUrlParameter('id');
+var subjectID = SONAID;
+if (subjectID===undefined) {subjectID = this.jsPsych.randomization.randomID(8)}; //if ID isn't read in, best to give it a random value
+jsPsych.data.addProperties({subject_id: subjectID}); //this is the awkward way you need to call jspsych routines now!
+
+console.log("Exp2:", 1);
+
+// CONSENT
+ // check that the consent box is clicked
+ var check_consent = function(elem) {
+  if (document.getElementById('consent_checkbox').checked) {
+    return true;
+  }
+  else {
+    alert("If you wish to participate, you must check the box next to the statement 'I agree to participate in this study.'");
+    return false;
+  }
+  return false;
+};
+
+// the trial itself
+ var consentTrial = {
+  type:jsPsychExternalHtml,
+  url: "consent.html",
+  cont_btn: "start",
+  check_fn: check_consent
+};
+
+// INSTRUCTION 1 
+// (welcome + brief instructions)
+var instructions1 = {
+  type: jsPsychInstructions,
+  pages: [
+    '<h1 style="text-align:center;">Welcome to the Numerosity Estimation Experiment</h1>'+
+    '<p style="text-align:left;">In this task, you will briefly see displays of multiple objects. Sometimes the objects will remain ' +
+    'static before disappearing. Other times, they will flash and replace each other before vanishing. '+
+    'In both cases your task will be to <b>estimate the number of objects</b> that will appear on the screen simultaneously.<br>'+
+    'The objects won\'t appear for long enough to actually count them, so, please don\'t be frustrated by that. '+
+    'Instead, we just want you to make the best estimate you can by moving a slider to input your guess on a numerosity scale.<br>'+
+    'But, before we begin, we\'ll first show you a range of displays and how many objects they contain. '+
+    'Looking at these displays will help you to calibrate your guesses.'
+  ],
+  button_label_next: "Look at a couple of displays with their numerosities provided",
+  show_clickable_nav: true
+};
+
+/* INSTRUCTION 2 */
+var instructions2 = {
+  type: jsPsychInstructions,
+  pages: [
+    '<h1 style="text-align:center;">Final Instructions</h1>'+
+    '<p style="text-align:left;">You now have a better idea about the task and the range of numerosities that you\'ll be shown. ' +
+    'We will give you feedback every couple of minutes about how closely your estimations match the actual numerosity given. '+
+    'The whole experiment will last about 40 minutes.'
+  ],
+  button_label_next: "Begin the Experiment",
+  show_clickable_nav: true
+};
+
+console.log("Exp2:", 2);
+
+
+// TRIALS
+
+// function to generate random but replicable arrays
+class SeedableRNG { //for creating replicable random numbers
+    constructor(seed) {
+        this.seed = seed;
+    }
+
+    random() {
+        // Constants for a Linear Congruential Generator (LCG)
+        const a = 1664525;
+        const c = 1013904223;
+        const m = 2 ** 32;
+
+        // Update the seed and return a pseudo-random value between 0 and 1
+        this.seed = (a * this.seed + c) % m;
+        return this.seed / m;
+    }
+}
+
+/* function to shuffle the array
+array, number of repetitions, seed (for replication) */
+function shuffleArray(array,nUniqueNumerosities,seed) { //using seedable random number generator
+  let repeatedList = [];
+  for (let i = 0; i < nUniqueNumerosities; i++) {
+      repeatedList = repeatedList.concat(array);
+  }
+  var rndNum = new SeedableRNG(seed); // Initialize with a seed
+    for (i = repeatedList.length - 1; i > 0; i--) {
+        const j = Math.floor(rndNum.random() * (i + 1));
+        [repeatedList[i], repeatedList[j]] = [repeatedList[j], repeatedList[i]];
+    }
+    return repeatedList;
+}
+
+// arrays with numerosities
+function generateEquallySpacedValues(min, max, X) {
+    let values = [];
+    // Calculate the step size. Note: (X - 1) to divide the range into X intervals
+    let step = (max - min) / (X - 1);
+    for (let i = 0; i < X; i++) {
+        // Push the current value in the range to the array
+        values.push(Math.floor(min + step * i));
+    }
+    return values;
+}
+// unique equally spaced numerosities ( 50, 64, 78, 92, 107, 121, 135, 150)
+var numerosities=generateEquallySpacedValues(minNumerosity, maxNumerosity, numPairs);
+
+// create a full design array
+var full_design_first_half = [];
+for (i = 0; i < numerosities.length; i++){
+    full_design_first_half.push({
+        numerosity:numerosities[i],
+        appearance: uniqueAppearances[0] // stationary
+    },{
+        numerosity:numerosities[i],
+        appearance: uniqueAppearances[1] // flashing
+    })
+}
+
+// create an array with all the trials
+// (it'll be shuffled, but later we'll re-shuffle it)
+var full_design_first_half =  shuffleArray(full_design_first_half, nUniqueNumerosities,random_seed);
+
+// add SPRITES to the design
+/* Here we want to make a fully balanced design:
+each numerosity with each appearance with each sprite */
+
+// sort the array, so that the design is balanced when we add sprites
+full_design_first_half.sort((a, b) => {
+  if (a.numerosity !== b.numerosity) {
+    return a.numerosity - b.numerosity; // Primary sort by numerosity
+  }
+  return a.appearance.localeCompare(b.appearance); // Secondary sort by appearance
+});
+
+// add sprites
+full_design_first_half = full_design_first_half.map((item, index) => ({
+  ...item,                    
+  sprites: uniqueSprites[index % uniqueSprites.length]
+}));
+
+// shuffle again
+// second parameter is 1 because we already have all the trials
+full_design_first_half = shuffleArray(full_design_first_half, 1 ,random_seed);
+
+/* Fuction that makes sure that all consecutives trials are different.
+Plus, makes sure that the first and the last trials are different 
+(so that the last trial of the first half of the Exp 
+and the first trial of the second half of the Exp
+are different) */
+function completelyShuffled(numerosities_array, n_unique, seed) {
+    let isValid = false;
+
+    while (!isValid) {
+        isValid = true; // Assume the array is valid unless proven otherwise
+        seed += 1; 
+
+        // Check each pair of consecutive elements
+        for (let i = 1; i < numerosities_array.length; i++) {
+            // If current element is the same as the previous one, or the first and last elements are the same
+            if (numerosities_array[i-1].numerosity == numerosities_array[i].numerosity || numerosities_array[0].numerosity == numerosities_array[numerosities_array.length - 1].numerosity) {
+                // Shuffle the array and reset the validation flag
+                numerosities_array = shuffleArray(full_design_first_half,n_unique, seed);
+                isValid = false; // Recheck the array after shuffling
+                
+                break; // Exit the loop to recheck the array
+            }
+        }
+    }
+    return numerosities_array; // Return the shuffled array once it's valid
+}
+
+/* finally shuffle the array
+and get the trial order */
+var full_design_first_half_shuffled = completelyShuffled(full_design_first_half, 1, random_seed);
+
+// add SEED
+full_design_first_half_shuffled = full_design_first_half_shuffled.map((item, index) => ({
+  ...item,                    
+  seed: 1+index // seed is just the number of the trial in the 1st half of the Exp
+}));
+
+// Full design
+// Just repeat the first half twice
+var full_design = full_design_first_half_shuffled.concat(full_design_first_half_shuffled);
+
+/* BLOCK and TRIAL
+Add the block and the trial numbers to the design */
+full_design = full_design.map((item, index) => ({
+  ...item,                    
+  block: Math.floor(index/trialsPerBlock),
+  trial: index,
+  inter_stimulus_interval: item.appearance === uniqueAppearances[0] ? 0 : inter_stim_interval, // if stationary ISI = 0
+  frame_time_flash: item.appearance === uniqueAppearances[0] ? stim_dur_total : stim_on_set_flash // if stationary frame rate = 0
+}));
+
+/* make each appearance a list */
+// Iterate over each element in the full_design list
+i = 0;
+full_design.forEach(element => {
+  i = i+1;
+  // Check if the value of the "sprites" key is not already a list
+  if (!Array.isArray(element.sprites)) {
+    // Convert the value into a list
+    if (element.appearance === uniqueAppearances[1]) { // flashing
+      let stim = [element.sprites];
+      element.sprites = stim.concat( shuffleArray(uniqueSprites,1,i).filter(element => element !== stim[0]) );
+    } else {
+      element.sprites = [element.sprites];
+    }
+  }
+});
+
+console.log("Exp2:", 3);
+
+/* CALLIBRATION
+Create callibration trials */
+var blockNum=-1;
+var callibrationList=[];
+for (i = 0; i < nCallibTrials; i += 1) { 
+  let appearanceValue = uniqueAppearances[i % uniqueAppearances.length];
+  callibrationList[i]={
+    numerosity: numerosities[i % numerosities.length],
+    appearance: uniqueAppearances[i % uniqueAppearances.length],
+    sprites: uniqueSprites[i % uniqueSprites.length],
+    seed: i,
+    block: blockNum,
+    trial: i,
+    inter_stimulus_interval: appearanceValue === uniqueAppearances[0] ? 0 : inter_stim_interval, // if stationary ISI = 0
+    frame_time_flash: appearanceValue === uniqueAppearances[0] ? stim_dur_total : stim_on_set_flash // if stationary frame rate = 0
+    };
+}
+
+// make the callibration list a list (for sprites)
+callibrationList.forEach(element => {
+  i = i+1;
+  // Check if the value of the "sprites" key is not already a list
+  if (!Array.isArray(element.sprites)) {
+    // Convert the value into a list
+    if (element.appearance === uniqueAppearances[1]) { // flashing
+      let stim = [element.sprites];
+      element.sprites = stim.concat( shuffleArray(uniqueSprites,1,i).filter(element => element !== stim[0]) );
+    } else {
+      element.sprites = [element.sprites];
+    }
+  }
+});
+
+
+/* DEBRIEFING BLOCK
+Create a block which will indicate the accuracy within the last block (16 trials) */
+debrief_block = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function() {
+    var mostRecentBlock=jsPsych.data.getLastTrialData().select('block').values[0];
+    var trials = jsPsych.data.get().filter({trial_type: 'numerosity-estimation-flashing',block: mostRecentBlock});
+    var accuracy=Math.round(trials.select('absDeviation').mean());
+    var feedback="OK";
+    if (accuracy<50) {
+      feedback="good"
+    };
+    if (accuracy<25) {
+      feedback="VERY good"
+    };
+    if (accuracy<15) {
+      feedback="AMAZINGLY good"
+    };
+    return `<p> For the last block of trials, the average deviation of your guesses from correct answers was ${accuracy}.</p>
+     <p>The smaller the deviation the better.  Your deviation was <b> ${feedback}</b>.</p><br>
+       <p>Press any key to continue to the next block of trials</p>`;
+  }
+}
+
+var metacognition = {
+  type: jsPsychSurveyMultiChoice,
+  questions: [
+    {
+      prompt: "Sometimes you saw stationary displays when the same objects remained visible throughout the trial, "+
+      "and sometimes you saw flashing trials when different objects replaced one another. When do you think you were more accurate? ",
+      name: 'Flash_or_Stat',
+      options: ['When objects were flashing',
+                'When objects were stationary'],
+      required: true
+    },
+    {
+      prompt: "In fact, we showed you each exact display twice, in the first and second half of the experiment. "+ 
+      "Which estimates do you think were more accurate on average?",
+      name: 'First_Second_Average',
+      options: ['In the first half', 'In the second half', 'The mean of the first and second estimates'],
+      required: true
+    },
+    {
+      prompt: "Was there any specific object category that was especially <b>difficult</b> to estimate? " +
+      "If yes, please mark which one was the most difficult",
+      name: 'Difficult_Objects',
+      options: ["None", ...uniqueSprites],
+      required: true
+    },
+    {
+      prompt: "Was there any specific object category that was especially <b>easy</b> to estimate? " +
+      "If yes, please mark which one was the easiest",
+      name: 'Easy_Objects',
+      options: ["None", ...uniqueSprites],
+      required: true
+    }
+  ],
+}
+
+var endDebriefing = {
+  type: jsPsychInstructions,
+  pages: [
+    '<h1 style="text-align:center;">Debriefing</h1>'+
+    '<p style="text-align:left;">Thank you very much for your participation. '+
+      'This experiment explores an interesting phenomenon related to perception and decision making. '+
+      'In the Wisdom of Crowds Effect, when many people are asked to estimate something (like the weight of an ox), '+
+      'the average of their estimates is typically closer to the right answer than most, sometimes all, of the individual guesses. '+
+      'Interestingly, in the Wisdom of the <b>Inner</b> Crowds Effect the same benefit of averaging multiple estimates is found '+
+      'even if the estimates come from the same person! It is as if we were made up of multiple judges, each having its own opinion.<br>'+
+      'In previous experiments, we found that reducing the correlation between guesses (by asking different people to make guesses, '+
+      'or asking to estimate different object categories) leads to a more accurate <b>average</b> estimate. '+
+      'In particular, object categories play a large role in this task. If this perspective is right, then even a more difficult task, '+
+      'like estimating rapidly flashing objects, might yield better (more accurate) results due to increased variability in perception.<br>'+
+      'Your data has been saved on our servers, so you are free to close this window whenever you want. Thanks again!</p>'
+      ],
+    button_label_next: "Clear this screen",
+    show_clickable_nav: true
+}
+
+console.log("Exp2:", 4);
+function numerosityEstimation(full_design,callibration) {
+  let trialz = {
+    timeline: [{
+      type:jsPsychNumerosityEstimationFlashing ,
+      stimulus: jsPsych.timelineVariable('sprites'), //sprites
+      appearance: jsPsych.timelineVariable('appearance'),
+      numerosity:jsPsych.timelineVariable('numerosity'),
+      scaling:0.65,
+      callibration:callibration,
+      canvas_size: [1000, 1000],
+      button_label:callibration === "callibration" ? "Press here to see the next display":"Submit guess",
+      min:25,
+      max:175,
+      slider_start:100,
+      step:1,
+      slider_width:800,
+      stimulus_height:800,
+      stimulus_width:800,
+      require_movement:callibration === "callibration" ? false : true,
+      random_seed:jsPsych.timelineVariable('seed'),
+      prompt: callibration === "callibration" ? "" : "Estimate the number of objects<p>",
+      stimulus_duration: stim_dur_total,
+      frame_time:jsPsych.timelineVariable('frame_time_flash'),
+      frame_isi:jsPsych.timelineVariable('inter_stimulus_interval'),
+      // trial_duration: 2000, // uniqueSprites.length * (200 + 50), 
+      // if set trial_duration to some value, then it won't wait until response
+      // and will skip to the next one
+      //blank_duration:50,
+      
+      data: {
+        callibration:callibration,
+        block:jsPsych.timelineVariable('block'),
+        seed:jsPsych.timelineVariable('seed'),
+        numerosity:jsPsych.timelineVariable('numerosity'),
+        appearance: jsPsych.timelineVariable('appearance'),
+        trial: jsPsych.timelineVariable('trial'),
+      }
+    }],
+    timeline_variables: full_design,
+    randomize_order: false
+  }
+  return trialz
+};
+console.log("Exp2:", 5);
+  // save data
+save_server_data = {
+   type: jsPsychCallFunction,
+   func: function () {
+     var data = jsPsych.data.get().ignore("internal_node_id").json();//ommitting .filter({task: 'property'}) to include all trials
+     var xhr = new XMLHttpRequest();
+     xhr.open('POST', 'php/save_json.php');
+     xhr.setRequestHeader('Content-Type', 'application/json');
+     xhr.send(JSON.stringify({ filedata: data })); // add id here, and then in php
+   },
+   post_trial_gap: 1000
+}
+
+console.log("Exp2:", 6);
+
+/* // preload images
+var images_preload = ["assets/sheet1.png","assets/sheet2.png","assets/sheet3.png",
+                      "assets/sheet4.png","assets/sheet5.png","assets/sheet6.png",
+                      "assets/sheet7.png","assets/sheet8.png","assets/sheet9.png",
+                      "assets/sheet10.png","assets/sheet11.png","assets/sheet12.png"];
+var preload = {
+  type: jsPsychPreload,
+  images: images_preload,
+  show_detailed_errors: true
+} */
+
+// create the timeline
+var timeline=[]
+// instructions
+timeline.push(consentTrial,instructions1);
+// train trials
+timeline.push(numerosityEstimation(callibrationList,"callibration"));
+// repeat instructions before test trials
+timeline.push(instructions2);
+// test trials with a debrief summary after each block
+for (i = 0; i < nBlocks; i += 1) { 
+  blocks=full_design.filter(entry => entry.block === i);
+  timeline.push(numerosityEstimation(blocks,"test"),debrief_block);
+}
+timeline.push(metacognition,save_server_data,endDebriefing);
+console.log("Exp2:", 7);
+
+jsPsych.run(timeline);
+
+</script>
+</html>
